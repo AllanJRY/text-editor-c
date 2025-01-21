@@ -61,25 +61,40 @@ void enable_raw_mode(void) {
     }
 }
 
+char editor_read_key(void) {
+    int read_count;
+    char c;
+
+    while ((read_count = read(STDIN_FILENO, &c, 1)) == -1) {
+        if (read_count == -1 && errno != EAGAIN) {
+            die("Error while reading input");
+        }
+    }
+
+    return c;
+}
+
+/*** input ***/
+
+void editor_process_keypress(void) {
+    char c = editor_read_key();
+
+    switch(c) {
+        case CTRL_KEY('q'):
+            exit(0);
+            break;
+    }
+}
+
 /*** init ***/
 
 int main(void) {
     enable_raw_mode();
 
     while (1) {
-        char c = '\0';
-        if(read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) {
-            die("Error while reading input");
-        }
-
-        if(iscntrl(c)) {
-            printf("%d\r\n", c);
-        } else {
-            printf("%d ('%c')\r\n", c, c);
-        }
-
-        if (c == CTRL_KEY('q')) break; 
+        editor_process_keypress();
     }
+
     return 0;
 }
 
