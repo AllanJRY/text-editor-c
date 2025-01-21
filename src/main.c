@@ -18,6 +18,11 @@ struct termios original_termios;
 /*** terminal ***/
 
 void die(const char* s) {
+    // clear the entire screen.
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    // move the cursor to the top-left corner.
+    write(STDOUT_FILENO, "\x1b[H", 4);
+
     perror(s);
     exit(1);
 }
@@ -74,6 +79,15 @@ char editor_read_key(void) {
     return c;
 }
 
+/*** output ***/
+
+void editor_refresh_screen(void) {
+    // clear the entire screen.
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    // move the cursor to the top-left corner.
+    write(STDOUT_FILENO, "\x1b[H", 4);
+}
+
 /*** input ***/
 
 void editor_process_keypress(void) {
@@ -81,6 +95,7 @@ void editor_process_keypress(void) {
 
     switch(c) {
         case CTRL_KEY('q'):
+            editor_refresh_screen();
             exit(0);
             break;
     }
@@ -92,6 +107,7 @@ int main(void) {
     enable_raw_mode();
 
     while (1) {
+        editor_refresh_screen();
         editor_process_keypress();
     }
 
