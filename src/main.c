@@ -78,7 +78,7 @@ char editor_read_key(void) {
     int read_count;
     char c;
 
-    while ((read_count = read(STDIN_FILENO, &c, 1)) == -1) {
+    while ((read_count = read(STDIN_FILENO, &c, 1)) != 1) {
         if (read_count == -1 && errno != EAGAIN) {
             die("Error while reading input");
         }
@@ -87,12 +87,49 @@ char editor_read_key(void) {
     return c;
 }
 
-// TODO: could return bool ?
+bool get_cursor_position(int* rows, int* cols) {
+    char buf[32];
+    unsigned int i = 0;
+
+    if(write(STDOUT_FILENO, "\x1b[6n", 4) != 4) {
+        return false;
+    }
+
+    while(i < sizeof(buf) - 1) {
+        if (read(STDIN_FILENO, &buf[i], 1) != 1) {
+            break;
+        }
+
+        if (buf[i] == 'R') {
+            break;
+        }
+
+        i += 1;
+    }
+
+    buf[i] = "\0";
+
+    if(buf[0] != '\x1b' || buf[1] != '[') {
+        die("wesh");
+        return false;
+    }
+
+    if(sscanf(&buf[2], "%d;%d", rows, cols) != 2) {
+        return false;
+    }
+
+    return true;
+}
+
 bool get_window_size(int* rows, int* cols) {
     struct winsize ws;
 
     if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-        return false;
+        if(write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12) {
+            return false;
+        }
+
+        return get_cursor_position(rows, cols);
     } else {
         *cols = ws.ws_col;
         *rows = ws.ws_row;
@@ -104,7 +141,11 @@ bool get_window_size(int* rows, int* cols) {
 
 void editor_draw_rows(void) {
     for(int y = 0; y < editor_state.screen_rows; y++) {
-        write(STDOUT_FILENO, "~\r\n", 3);
+        write(STDOUT_FILENO, "~", 1);
+
+        if (y < editor_state.screen_rows - 1) {
+            write(STDOUT_FILENO, "\r\n", 2);
+        }
     }
 }
 
