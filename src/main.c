@@ -1,5 +1,9 @@
 /*** includes ***/
 
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -7,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -30,12 +35,21 @@ typedef enum Editor_Key {
 
 /*** datas ***/
 
-typedef struct Editor_State {
+typedef struct Editor_Row Editor_Row;
+struct Editor_Row {
+    int size;
+    char* chars;
+};
+
+typedef struct Editor_State Editor_State;
+struct Editor_State {
     int cursor_x, cursor_y;
     int screen_rows;
     int screen_cols;
+    int rows_count;
+    Editor_Row row;
     struct termios original_termios;
-} Editor_State;
+};
 
 Editor_State editor_state;
 
@@ -195,6 +209,32 @@ bool get_window_size(int* rows, int* cols) {
     }
 }
 
+/*** file i/o ***/
+
+void editor_open(char* filename) {
+    FILE* fp = fopen(filename, "r");
+    if (!fp) die("Error while opening the file");
+
+    char* line       = NULL;
+    size_t line_cap  = 0;
+    ssize_t line_len = getline(&line, &line_cap, fp);
+
+    if(line_len != -1) {
+        while (line_len > 0 && (line[line_len - 1] == '\n' || line[line_len - 1] == '\r')) {
+            line_len -= 1;
+        }
+
+        editor_state.row.size = line_len;
+        editor_state.row.chars = malloc(line_len + 1);
+        memcpy(editor_state.row.chars, line, line_len);
+        editor_state.row.chars[line_len] = '\0';
+        editor_state.rows_count = 1;
+    }
+
+    free(line);
+    fclose(fp);
+}
+
 /*** append buffer ***/
 
 typedef struct Append_Buf {
@@ -222,27 +262,33 @@ void append_buf_free(Append_Buf* buf) {
 
 void editor_draw_rows(Append_Buf* buf) {
     for(int y = 0; y < editor_state.screen_rows; y++) {
-        if(y == editor_state.screen_rows / 3) {
-            char welcome[80];
-            int welcome_len = snprintf(welcome, sizeof(welcome), "Editeur -- version %s", EDITOR_VERSION);
+        if (y >= editor_state.rows_count) {
+            if(editor_state == 0 && y == editor_state.screen_rows / 3) {
+                char welcome[80];
+                int welcome_len = snprintf(welcome, sizeof(welcome), "Editeur -- version %s", EDITOR_VERSION);
 
-            if (welcome_len > editor_state.screen_cols) {
-                welcome_len = editor_state.screen_cols;
+                if (welcome_len > editor_state.screen_cols) {
+                    welcome_len = editor_state.screen_cols;
+                }
+
+                int padding = (editor_state.screen_cols - welcome_len) / 2;
+                if (padding) {
+                    append_buf_append(buf, "~", 1);
+                }
+
+                while (padding -= 1) {
+                    append_buf_append(buf, " ", 1);
+                }
+
+                append_buf_append(buf, welcome, welcome_len);
             }
-
-            int padding = (editor_state.screen_cols - welcome_len) / 2;
-            if (padding) {
+            else {
                 append_buf_append(buf, "~", 1);
             }
-
-            while (padding -= 1) {
-                append_buf_append(buf, " ", 1);
-            }
-
-            append_buf_append(buf, welcome, welcome_len);
-        }
-        else {
-            append_buf_append(buf, "~", 1);
+        } else {
+            int len = editor_state.row.size;
+            if (len > editor_state.screen_cols) len = editor_state.screen_cols;
+            append_buf_append(buf, editor_state.row.chars, len);
         }
 
         // clear the current line.
@@ -344,18 +390,23 @@ void editor_process_keypress(void) {
 
 /*** init ***/
 
-void init_editor(void) {
+void editor_init(void) {
     editor_state.cursor_x = 0;
     editor_state.cursor_y = 0;
+    editor_state.rows_count = 0;
 
     if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
         die("Error during editor init");
     }
 }
 
-int main(void) {
+int main(int argc, char* argv[]) {
     enable_raw_mode();
-    init_editor();
+    editor_init();
+
+    if (argc >= 2) {
+        editor_open(argv[1]);
+    }
 
     while (1) {
         editor_refresh_screen();
