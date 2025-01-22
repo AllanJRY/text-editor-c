@@ -20,7 +20,12 @@ typedef enum Editor_Key {
     MOVE_LEFT  = 'h',
     MOVE_RIGHT = 'l',
     MOVE_UP    = 'k',
-    MOVE_DOWN  = 'j'
+    MOVE_DOWN  = 'j',
+    PAGE_UP    = 1000,
+    PAGE_DOWN,
+    HOME_KEY,
+    END_KEY,
+    DEL_KEY
 } Editor_Key;
 
 /*** datas ***/
@@ -85,7 +90,7 @@ void enable_raw_mode(void) {
     }
 }
 
-char editor_read_key(void) {
+int editor_read_key(void) {
     int read_count;
     char c;
 
@@ -104,11 +109,33 @@ char editor_read_key(void) {
 
 
         if (seq[0] == '[') {
+            if (seq[1] >= '0' && seq[1] <= '9') {
+                if (read(STDIN_FILENO, &seq[2], 1) != 1) return '\x1b';
+                if(seq[2] == '~') {
+                    switch (seq[1]) {
+                        case '1': return HOME_KEY;
+                        case '3': return DEL_KEY;
+                        case '4': return END_KEY;
+                        case '5': return PAGE_UP;
+                        case '6': return PAGE_DOWN;
+                        case '7': return HOME_KEY;
+                        case '8': return END_KEY;
+                    }
+                }
+            } else {
+                switch(seq[1]) {
+                    case 'A': return MOVE_DOWN;
+                    case 'B': return MOVE_UP;
+                    case 'C': return MOVE_RIGHT;
+                    case 'D': return MOVE_LEFT;
+                    case 'H': return HOME_KEY;
+                    case 'F': return END_KEY;
+                }
+            }
+        } else if(seq[0] == 'O') {
             switch(seq[1]) {
-                case 'A': return MOVE_DOWN;
-                case 'B': return MOVE_UP;
-                case 'C': return MOVE_RIGHT;
-                case 'D': return MOVE_LEFT;
+                case 'H': return HOME_KEY;
+                case 'F': return END_KEY;
             }
         }
 
@@ -254,7 +281,7 @@ void editor_refresh_screen(void) {
 
 /*** input ***/
 
-void editor_move_cursor(char key_pressed) {
+void editor_move_cursor(int key_pressed) {
     switch (key_pressed) {
         case MOVE_LEFT:
             if(editor_state.cursor_x != 0) {
@@ -281,17 +308,35 @@ void editor_move_cursor(char key_pressed) {
 
 
 void editor_process_keypress(void) {
-    char c = editor_read_key();
+    int c = editor_read_key();
 
     switch(c) {
         case CTRL_KEY('q'):
             editor_refresh_screen();
             exit(0);
             break;
-        case 'h':
-        case 'j':
-        case 'k':
-        case 'l':
+
+        case HOME_KEY:
+            editor_state.cursor_x = 0;
+            break;
+
+        case END_KEY:
+            editor_state.cursor_x = editor_state.screen_cols - 1;
+            break;
+
+        case PAGE_UP:
+        case PAGE_DOWN:
+            {
+                int times = editor_state.screen_rows;
+                while (times -= 1) {
+                    editor_move_cursor(c == PAGE_UP ? MOVE_UP : MOVE_DOWN);
+                }
+            }
+            break;
+        case MOVE_LEFT:
+        case MOVE_DOWN:
+        case MOVE_UP:
+        case MOVE_RIGHT:
             editor_move_cursor(c);
             break;
     }
