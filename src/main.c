@@ -12,6 +12,8 @@
 
 /*** defines ***/
 
+#define EDITOR_VERSION "0.0.1"
+
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 /*** datas ***/
@@ -166,7 +168,28 @@ void append_buf_free(Append_Buf* buf) {
 
 void editor_draw_rows(Append_Buf* buf) {
     for(int y = 0; y < editor_state.screen_rows; y++) {
-        append_buf_append(buf, "~", 1);
+        if(y == editor_state.screen_rows / 3) {
+            char welcome[80];
+            int welcome_len = snprintf(welcome, sizeof(welcome), "Editeur -- version %s", EDITOR_VERSION);
+
+            if (welcome_len > editor_state.screen_cols) {
+                welcome_len = editor_state.screen_cols;
+            }
+
+            int padding = (editor_state.screen_cols - welcome_len) / 2;
+            if (padding) {
+                append_buf_append(buf, "~", 1);
+            }
+
+            while (padding -= 1) {
+                append_buf_append(buf, " ", 1);
+            }
+
+            append_buf_append(buf, welcome, welcome_len);
+        }
+        else {
+            append_buf_append(buf, "~", 1);
+        }
 
         // clear the current line.
         append_buf_append(buf, "\x1b[K", 3);
