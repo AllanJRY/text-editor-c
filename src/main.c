@@ -2,8 +2,10 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -13,7 +15,13 @@
 
 /*** datas ***/
 
-struct termios original_termios;
+typedef struct Editor_State {
+    int screen_rows;
+    int screen_cols;
+    struct termios original_termios;
+} Editor_State;
+
+Editor_State editor_state;
 
 /*** terminal ***/
 
@@ -28,18 +36,18 @@ void die(const char* s) {
 }
 
 void disable_raw_mode(void) {
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios) == -1) {
+    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &editor_state.original_termios) == -1) {
         die("`tcsetattr` fail when disabling raw mode");
     }
 }
 
 void enable_raw_mode(void) {
-    if (tcgetattr(STDIN_FILENO, &original_termios) == -1) {
+    if (tcgetattr(STDIN_FILENO, &editor_state.original_termios) == -1) {
         die("`tcgetattr` fail when enabling raw mode");
     }
     atexit(disable_raw_mode);
 
-    struct termios raw = original_termios;
+    struct termios raw = editor_state.original_termios;
 
     // ICRNL Fix Ctrl-M, prevent carriage return `\r` (13) to be transtaled to `\n` (10).
     // IXON disable Ctrl+S and Ctrl+Q.
@@ -79,12 +87,35 @@ char editor_read_key(void) {
     return c;
 }
 
+// TODO: could return bool ?
+bool get_window_size(int* rows, int* cols) {
+    struct winsize ws;
+
+    if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+        return false;
+    } else {
+        *cols = ws.ws_col;
+        *rows = ws.ws_row;
+        return true;
+    }
+}
+
 /*** output ***/
+
+void editor_draw_rows(void) {
+    for(int y = 0; y < editor_state.screen_rows; y++) {
+        write(STDOUT_FILENO, "~\r\n", 3);
+    }
+}
 
 void editor_refresh_screen(void) {
     // clear the entire screen.
     write(STDOUT_FILENO, "\x1b[2J", 4);
     // move the cursor to the top-left corner.
+    write(STDOUT_FILENO, "\x1b[H", 4);
+
+    editor_draw_rows();
+
     write(STDOUT_FILENO, "\x1b[H", 4);
 }
 
@@ -103,8 +134,15 @@ void editor_process_keypress(void) {
 
 /*** init ***/
 
+void init_editor(void) {
+    if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
+        die("Error during editor init");
+    }
+}
+
 int main(void) {
     enable_raw_mode();
+    init_editor();
 
     while (1) {
         editor_refresh_screen();
