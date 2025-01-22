@@ -16,9 +16,17 @@
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+typedef enum Editor_Key {
+    MOVE_LEFT  = 'h',
+    MOVE_RIGHT = 'l',
+    MOVE_UP    = 'k',
+    MOVE_DOWN  = 'j'
+} Editor_Key;
+
 /*** datas ***/
 
 typedef struct Editor_State {
+    int cursor_x, cursor_y;
     int screen_rows;
     int screen_cols;
     struct termios original_termios;
@@ -87,7 +95,27 @@ char editor_read_key(void) {
         }
     }
 
-    return c;
+    // Mapp arrow keys to hjkl.
+    if (c == '\x1b') {
+        char seq[3];
+
+        if (read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1b';
+        if (read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1b';
+
+
+        if (seq[0] == '[') {
+            switch(seq[1]) {
+                case 'A': return MOVE_DOWN;
+                case 'B': return MOVE_UP;
+                case 'C': return MOVE_RIGHT;
+                case 'D': return MOVE_LEFT;
+            }
+        }
+
+        return '\x1b';
+    } else {
+        return c;
+    }
 }
 
 bool get_cursor_position(int* rows, int* cols) {
@@ -163,7 +191,6 @@ void append_buf_free(Append_Buf* buf) {
     free(buf->b);
 }
 
-
 /*** output ***/
 
 void editor_draw_rows(Append_Buf* buf) {
@@ -214,7 +241,9 @@ void editor_refresh_screen(void) {
 
     editor_draw_rows(&buf);
 
-    append_buf_append(&buf, "\x1b[H", 3);
+    char cursor_buf[32];
+    snprintf(cursor_buf, sizeof(cursor_buf), "\x1b[%d;%dH", editor_state.cursor_y + 1, editor_state.cursor_x + 1);
+    append_buf_append(&buf, cursor_buf, strlen(cursor_buf));
 
     // show the cursor
     append_buf_append(&buf, "\x1b[?25h", 6);
@@ -225,6 +254,32 @@ void editor_refresh_screen(void) {
 
 /*** input ***/
 
+void editor_move_cursor(char key_pressed) {
+    switch (key_pressed) {
+        case MOVE_LEFT:
+            if(editor_state.cursor_x != 0) {
+                editor_state.cursor_x -= 1;
+            }
+            break;
+        case MOVE_RIGHT:
+            if(editor_state.cursor_x != editor_state.screen_cols - 1) {
+                editor_state.cursor_x += 1;
+            }
+            break;
+        case MOVE_UP:
+            if(editor_state.cursor_y != 0) {
+                editor_state.cursor_y -= 1;
+            }
+            break;
+        case MOVE_DOWN:
+            if(editor_state.cursor_y != editor_state.screen_rows - 1) {
+                editor_state.cursor_y += 1;
+            }
+            break;
+    }
+}
+
+
 void editor_process_keypress(void) {
     char c = editor_read_key();
 
@@ -233,12 +288,21 @@ void editor_process_keypress(void) {
             editor_refresh_screen();
             exit(0);
             break;
+        case 'h':
+        case 'j':
+        case 'k':
+        case 'l':
+            editor_move_cursor(c);
+            break;
     }
 }
 
 /*** init ***/
 
 void init_editor(void) {
+    editor_state.cursor_x = 0;
+    editor_state.cursor_y = 0;
+
     if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
         die("Error during editor init");
     }
