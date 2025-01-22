@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -107,7 +108,7 @@ bool get_cursor_position(int* rows, int* cols) {
         i += 1;
     }
 
-    buf[i] = "\0";
+    buf[i] = '\0';
 
     if(buf[0] != '\x1b' || buf[1] != '[') {
         die("wesh");
@@ -137,27 +138,66 @@ bool get_window_size(int* rows, int* cols) {
     }
 }
 
+/*** append buffer ***/
+
+typedef struct Append_Buf {
+    char* b;
+    int len;
+} Append_Buf;
+
+#define APPEND_BUF_INIT { .b = NULL, .len = 0 }
+
+void append_buf_append(Append_Buf* buf, const char* s, int len) {
+    char *new = realloc(buf->b, buf->len + len);
+
+    if (new == NULL) return;
+
+    memcpy(&new[buf->len], s, len);
+    buf->b    = new;
+    buf->len += len;
+}
+
+void append_buf_free(Append_Buf* buf) {
+    free(buf->b);
+}
+
+
 /*** output ***/
 
-void editor_draw_rows(void) {
+void editor_draw_rows(Append_Buf* buf) {
     for(int y = 0; y < editor_state.screen_rows; y++) {
-        write(STDOUT_FILENO, "~", 1);
+        append_buf_append(buf, "~", 1);
+
+        // clear the current line.
+        append_buf_append(buf, "\x1b[K", 3);
 
         if (y < editor_state.screen_rows - 1) {
-            write(STDOUT_FILENO, "\r\n", 2);
+            append_buf_append(buf, "\r\n", 2);
         }
     }
 }
 
 void editor_refresh_screen(void) {
-    // clear the entire screen.
-    write(STDOUT_FILENO, "\x1b[2J", 4);
+    Append_Buf buf = APPEND_BUF_INIT;
+    
+    // hide the cursor
+    append_buf_append(&buf, "\x1b[?25l", 6);
+
+    // clear the entire screen, not used because each line is cleared in editor_draw_rows.
+    // append_buf_append(&buf, "\x1b[2J", 4);
+
     // move the cursor to the top-left corner.
-    write(STDOUT_FILENO, "\x1b[H", 4);
+    append_buf_append(&buf, "\x1b[H", 3);
 
-    editor_draw_rows();
+    editor_draw_rows(&buf);
 
-    write(STDOUT_FILENO, "\x1b[H", 4);
+    append_buf_append(&buf, "\x1b[H", 3);
+
+    // show the cursor
+    append_buf_append(&buf, "\x1b[?25h", 6);
+
+    write(STDOUT_FILENO, buf.b, buf.len);
+    append_buf_free(&buf);
 }
 
 /*** input ***/
