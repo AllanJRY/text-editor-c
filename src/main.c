@@ -377,6 +377,9 @@ void editor_move_cursor(int key_pressed) {
         case MOVE_RIGHT:
             if (row && editor_state.cursor_x < row->size) {
                 editor_state.cursor_x += 1;
+            } else if (row && editor_state.cursor_x == row->size) {
+                editor_state.cursor_y += 1;
+                editor_state.cursor_x = 0;
             }
             break;
         case MOVE_UP:
