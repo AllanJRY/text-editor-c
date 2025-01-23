@@ -44,6 +44,7 @@ struct Editor_Row {
 typedef struct Editor_State Editor_State;
 struct Editor_State {
     int cursor_x, cursor_y;
+    int row_offset;
     int screen_rows;
     int screen_cols;
     int rows_count;
@@ -269,9 +270,19 @@ void append_buf_free(Append_Buf* buf) {
 
 /*** output ***/
 
+void editor_scroll(void) {
+    if (editor_state.cursor_y < editor_state.row_offset) {
+        editor_state.row_offset = editor_state.cursor_y;
+    }
+    if (editor_state.cursor_y >= editor_state.row_offset + editor_state.screen_rows) {
+        editor_state.row_offset = editor_state.cursor_y - editor_state.screen_rows + 1;
+    }
+}
+
 void editor_draw_rows(Append_Buf* buf) {
     for(int y = 0; y < editor_state.screen_rows; y++) {
-        if (y >= editor_state.rows_count) {
+        int file_row = y + editor_state.row_offset;
+        if (file_row >= editor_state.rows_count) {
             if(editor_state.rows_count == 0 && y == editor_state.screen_rows / 3) {
                 char welcome[80];
                 int welcome_len = snprintf(welcome, sizeof(welcome), "Editeur -- version %s", EDITOR_VERSION);
@@ -295,9 +306,9 @@ void editor_draw_rows(Append_Buf* buf) {
                 append_buf_append(buf, "~", 1);
             }
         } else {
-            int len = editor_state.rows[y].size;
+            int len = editor_state.rows[file_row].size;
             if (len > editor_state.screen_cols) len = editor_state.screen_cols;
-            append_buf_append(buf, editor_state.rows[y].chars, len);
+            append_buf_append(buf, editor_state.rows[file_row].chars, len);
         }
 
         // clear the current line.
@@ -310,6 +321,8 @@ void editor_draw_rows(Append_Buf* buf) {
 }
 
 void editor_refresh_screen(void) {
+    editor_scroll();
+
     Append_Buf buf = APPEND_BUF_INIT;
     
     // hide the cursor
@@ -324,7 +337,7 @@ void editor_refresh_screen(void) {
     editor_draw_rows(&buf);
 
     char cursor_buf[32];
-    snprintf(cursor_buf, sizeof(cursor_buf), "\x1b[%d;%dH", editor_state.cursor_y + 1, editor_state.cursor_x + 1);
+    snprintf(cursor_buf, sizeof(cursor_buf), "\x1b[%d;%dH", (editor_state.cursor_y - editor_state.row_offset) + 1, editor_state.cursor_x + 1);
     append_buf_append(&buf, cursor_buf, strlen(cursor_buf));
 
     // show the cursor
@@ -354,7 +367,7 @@ void editor_move_cursor(int key_pressed) {
             }
             break;
         case MOVE_DOWN:
-            if(editor_state.cursor_y != editor_state.screen_rows - 1) {
+            if(editor_state.cursor_y < editor_state.rows_count) {
                 editor_state.cursor_y += 1;
             }
             break;
@@ -402,6 +415,7 @@ void editor_process_keypress(void) {
 void editor_init(void) {
     editor_state.cursor_x   = 0;
     editor_state.cursor_y   = 0;
+    editor_state.row_offset = 0;
     editor_state.rows       = NULL;
     editor_state.rows_count = 0;
 
