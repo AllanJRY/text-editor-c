@@ -47,6 +47,7 @@ struct Editor_Row {
 typedef struct Editor_State Editor_State;
 struct Editor_State {
     int cursor_x, cursor_y;
+    int render_x;
     int row_offset, col_offset;
     int screen_rows;
     int screen_cols;
@@ -215,6 +216,18 @@ bool get_window_size(int* rows, int* cols) {
 
 /*** row operation ***/
 
+int editor_row_cursor_x_to_render_x(Editor_Row* row, int cursor_x) {
+    int render_x = 0;
+    for (int j = 0; j < cursor_x; j += 1) {
+        if (row->chars[j] == '\t') {
+            render_x = (EDITOR_TAB_STOP - 1) - (render_x % EDITOR_TAB_STOP);
+        }
+        render_x += 1;
+    }
+
+    return render_x;
+}
+
 void editor_update_row(Editor_Row* row) {
     int tabs = 0;
     for(int j = 0; j < row->size; j += 1) {
@@ -306,17 +319,22 @@ void append_buf_free(Append_Buf* buf) {
 /*** output ***/
 
 void editor_scroll(void) {
+    editor_state.render_x = 0;
+    if(editor_state.cursor_y < editor_state.rows_count) {
+        editor_state.render_x = editor_row_cursor_x_to_render_x(&editor_state.rows[editor_state.cursor_y], editor_state.cursor_x);
+    }
+
     if (editor_state.cursor_y < editor_state.row_offset) {
         editor_state.row_offset = editor_state.cursor_y;
     }
     if (editor_state.cursor_y >= editor_state.row_offset + editor_state.screen_rows) {
         editor_state.row_offset = editor_state.cursor_y - editor_state.screen_rows + 1;
     }
-    if (editor_state.cursor_x < editor_state.col_offset) {
-        editor_state.col_offset = editor_state.cursor_x;
+    if (editor_state.render_x < editor_state.col_offset) {
+        editor_state.col_offset = editor_state.render_x;
     }
-    if (editor_state.cursor_x >= editor_state.col_offset + editor_state.screen_cols) {
-        editor_state.col_offset = editor_state.cursor_x - editor_state.screen_cols + 1;
+    if (editor_state.render_x >= editor_state.col_offset + editor_state.screen_cols) {
+        editor_state.col_offset = editor_state.render_x - editor_state.screen_cols + 1;
     }
 }
 
@@ -384,7 +402,7 @@ void editor_refresh_screen(void) {
         sizeof(cursor_buf),
         "\x1b[%d;%dH",
         (editor_state.cursor_y - editor_state.row_offset) + 1,
-        (editor_state.cursor_x - editor_state.col_offset) + 1
+        (editor_state.render_x - editor_state.col_offset) + 1
     );
     append_buf_append(&buf, cursor_buf, strlen(cursor_buf));
 
@@ -477,6 +495,7 @@ void editor_process_keypress(void) {
 void editor_init(void) {
     editor_state.cursor_x   = 0;
     editor_state.cursor_y   = 0;
+    editor_state.render_x   = 0;
     editor_state.row_offset = 0;
     editor_state.col_offset = 0;
     editor_state.rows       = NULL;
