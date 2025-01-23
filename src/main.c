@@ -363,6 +363,8 @@ void editor_refresh_screen(void) {
 /*** input ***/
 
 void editor_move_cursor(int key_pressed) {
+    Editor_Row* row = (editor_state.cursor_y >= editor_state.rows_count) ? NULL : &editor_state.rows[editor_state.cursor_y];
+
     switch (key_pressed) {
         case MOVE_LEFT:
             if(editor_state.cursor_x != 0) {
@@ -370,7 +372,9 @@ void editor_move_cursor(int key_pressed) {
             }
             break;
         case MOVE_RIGHT:
-            editor_state.cursor_x += 1;
+            if (row && editor_state.cursor_x < row->size) {
+                editor_state.cursor_x += 1;
+            }
             break;
         case MOVE_UP:
             if(editor_state.cursor_y != 0) {
@@ -382,6 +386,12 @@ void editor_move_cursor(int key_pressed) {
                 editor_state.cursor_y += 1;
             }
             break;
+    }
+
+    row = (editor_state.cursor_y >= editor_state.rows_count) ? NULL : &editor_state.rows[editor_state.cursor_y];
+    int row_len = row ? row->size : 0;
+    if(editor_state.cursor_x > row_len) {
+        editor_state.cursor_x = row_len;
     }
 }
 
