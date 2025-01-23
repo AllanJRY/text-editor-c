@@ -18,6 +18,7 @@
 /*** defines ***/
 
 #define EDITOR_VERSION "0.0.1"
+#define EDITOR_TAB_STOP 8
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -38,7 +39,9 @@ typedef enum Editor_Key {
 typedef struct Editor_Row Editor_Row;
 struct Editor_Row {
     int size;
+    int render_size;
     char* chars;
+    char* render;
 };
 
 typedef struct Editor_State Editor_State;
@@ -212,6 +215,33 @@ bool get_window_size(int* rows, int* cols) {
 
 /*** row operation ***/
 
+void editor_update_row(Editor_Row* row) {
+    int tabs = 0;
+    for(int j = 0; j < row->size; j += 1) {
+        if (row->chars[j] == '\t') tabs =+ 1;
+    }
+
+    free(row->render);
+    row->render = malloc(row->size + tabs * (EDITOR_TAB_STOP - 1) + 1);
+
+    int idx = 0;
+    for (int j = 0; j < row->size; j += 1) {
+        if (row->chars[j] == '\t') {
+            row->render[idx] = ' ';
+            while (idx % EDITOR_TAB_STOP != 0) {
+                row->render[idx] = ' ';
+                idx += 1;
+            }
+        } else {
+            row->render[idx] = row->chars[j];
+            idx += 1;
+        }
+    }
+
+    row->render[idx] = '\0';
+    row->render_size = idx;
+}
+
 void editor_append_row(char* line, size_t line_len) {
     editor_state.rows = realloc(editor_state.rows, sizeof(Editor_Row) * (editor_state.rows_count + 1));
 
@@ -220,6 +250,11 @@ void editor_append_row(char* line, size_t line_len) {
     editor_state.rows[at].chars = malloc(line_len + 1);
     memcpy(editor_state.rows[at].chars, line, line_len);
     editor_state.rows[at].chars[line_len] = '\0';
+
+    editor_state.rows[at].render_size = 0;
+    editor_state.rows[at].render = NULL;
+    editor_update_row(&editor_state.rows[at]);
+
     editor_state.rows_count += 1;
 }
 
@@ -312,10 +347,10 @@ void editor_draw_rows(Append_Buf* buf) {
                 append_buf_append(buf, "~", 1);
             }
         } else {
-            int len = editor_state.rows[file_row].size - editor_state.col_offset;
+            int len = editor_state.rows[file_row].render_size - editor_state.col_offset;
             if(len < 0) len = 0;
             if (len > editor_state.screen_cols) len = editor_state.screen_cols;
-            append_buf_append(buf, &editor_state.rows[file_row].chars[editor_state.col_offset], len);
+            append_buf_append(buf, &editor_state.rows[file_row].render[editor_state.col_offset], len);
         }
 
         // clear the current line.
