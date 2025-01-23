@@ -44,7 +44,7 @@ struct Editor_Row {
 typedef struct Editor_State Editor_State;
 struct Editor_State {
     int cursor_x, cursor_y;
-    int row_offset;
+    int row_offset, col_offset;
     int screen_rows;
     int screen_cols;
     int rows_count;
@@ -277,6 +277,12 @@ void editor_scroll(void) {
     if (editor_state.cursor_y >= editor_state.row_offset + editor_state.screen_rows) {
         editor_state.row_offset = editor_state.cursor_y - editor_state.screen_rows + 1;
     }
+    if (editor_state.cursor_x < editor_state.col_offset) {
+        editor_state.col_offset = editor_state.cursor_x;
+    }
+    if (editor_state.cursor_x >= editor_state.col_offset + editor_state.screen_cols) {
+        editor_state.col_offset = editor_state.cursor_x - editor_state.screen_cols + 1;
+    }
 }
 
 void editor_draw_rows(Append_Buf* buf) {
@@ -306,9 +312,10 @@ void editor_draw_rows(Append_Buf* buf) {
                 append_buf_append(buf, "~", 1);
             }
         } else {
-            int len = editor_state.rows[file_row].size;
+            int len = editor_state.rows[file_row].size - editor_state.col_offset;
+            if(len < 0) len = 0;
             if (len > editor_state.screen_cols) len = editor_state.screen_cols;
-            append_buf_append(buf, editor_state.rows[file_row].chars, len);
+            append_buf_append(buf, &editor_state.rows[file_row].chars[editor_state.col_offset], len);
         }
 
         // clear the current line.
@@ -337,7 +344,13 @@ void editor_refresh_screen(void) {
     editor_draw_rows(&buf);
 
     char cursor_buf[32];
-    snprintf(cursor_buf, sizeof(cursor_buf), "\x1b[%d;%dH", (editor_state.cursor_y - editor_state.row_offset) + 1, editor_state.cursor_x + 1);
+    snprintf(
+        cursor_buf,
+        sizeof(cursor_buf),
+        "\x1b[%d;%dH",
+        (editor_state.cursor_y - editor_state.row_offset) + 1,
+        (editor_state.cursor_x - editor_state.col_offset) + 1
+    );
     append_buf_append(&buf, cursor_buf, strlen(cursor_buf));
 
     // show the cursor
@@ -357,9 +370,7 @@ void editor_move_cursor(int key_pressed) {
             }
             break;
         case MOVE_RIGHT:
-            if(editor_state.cursor_x != editor_state.screen_cols - 1) {
-                editor_state.cursor_x += 1;
-            }
+            editor_state.cursor_x += 1;
             break;
         case MOVE_UP:
             if(editor_state.cursor_y != 0) {
@@ -416,6 +427,7 @@ void editor_init(void) {
     editor_state.cursor_x   = 0;
     editor_state.cursor_y   = 0;
     editor_state.row_offset = 0;
+    editor_state.col_offset = 0;
     editor_state.rows       = NULL;
     editor_state.rows_count = 0;
 
