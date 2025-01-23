@@ -47,7 +47,7 @@ struct Editor_State {
     int screen_rows;
     int screen_cols;
     int rows_count;
-    Editor_Row row;
+    Editor_Row* rows;
     struct termios original_termios;
 };
 
@@ -209,6 +209,19 @@ bool get_window_size(int* rows, int* cols) {
     }
 }
 
+/*** row operation ***/
+
+void editor_append_row(char* line, size_t line_len) {
+    editor_state.rows = realloc(editor_state.rows, sizeof(Editor_Row) * (editor_state.rows_count + 1));
+
+    int at = editor_state.rows_count;
+    editor_state.rows[at].size = line_len;
+    editor_state.rows[at].chars = malloc(line_len + 1);
+    memcpy(editor_state.rows[at].chars, line, line_len);
+    editor_state.rows[at].chars[line_len] = '\0';
+    editor_state.rows_count += 1;
+}
+
 /*** file i/o ***/
 
 void editor_open(char* filename) {
@@ -217,18 +230,14 @@ void editor_open(char* filename) {
 
     char* line       = NULL;
     size_t line_cap  = 0;
-    ssize_t line_len = getline(&line, &line_cap, fp);
+    ssize_t line_len;
 
-    if(line_len != -1) {
+    while((line_len = getline(&line, &line_cap, fp)) != -1) {
         while (line_len > 0 && (line[line_len - 1] == '\n' || line[line_len - 1] == '\r')) {
             line_len -= 1;
         }
 
-        editor_state.row.size = line_len;
-        editor_state.row.chars = malloc(line_len + 1);
-        memcpy(editor_state.row.chars, line, line_len);
-        editor_state.row.chars[line_len] = '\0';
-        editor_state.rows_count = 1;
+        editor_append_row(line, line_len);
     }
 
     free(line);
@@ -263,7 +272,7 @@ void append_buf_free(Append_Buf* buf) {
 void editor_draw_rows(Append_Buf* buf) {
     for(int y = 0; y < editor_state.screen_rows; y++) {
         if (y >= editor_state.rows_count) {
-            if(editor_state == 0 && y == editor_state.screen_rows / 3) {
+            if(editor_state.rows_count == 0 && y == editor_state.screen_rows / 3) {
                 char welcome[80];
                 int welcome_len = snprintf(welcome, sizeof(welcome), "Editeur -- version %s", EDITOR_VERSION);
 
@@ -286,9 +295,9 @@ void editor_draw_rows(Append_Buf* buf) {
                 append_buf_append(buf, "~", 1);
             }
         } else {
-            int len = editor_state.row.size;
+            int len = editor_state.rows[y].size;
             if (len > editor_state.screen_cols) len = editor_state.screen_cols;
-            append_buf_append(buf, editor_state.row.chars, len);
+            append_buf_append(buf, editor_state.rows[y].chars, len);
         }
 
         // clear the current line.
@@ -391,8 +400,9 @@ void editor_process_keypress(void) {
 /*** init ***/
 
 void editor_init(void) {
-    editor_state.cursor_x = 0;
-    editor_state.cursor_y = 0;
+    editor_state.cursor_x   = 0;
+    editor_state.cursor_y   = 0;
+    editor_state.rows       = NULL;
     editor_state.rows_count = 0;
 
     if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
