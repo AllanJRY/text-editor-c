@@ -369,6 +369,9 @@ void editor_move_cursor(int key_pressed) {
         case MOVE_LEFT:
             if(editor_state.cursor_x != 0) {
                 editor_state.cursor_x -= 1;
+            } else if (editor_state.cursor_y > 0) {
+                editor_state.cursor_y -= 1;
+                editor_state.cursor_x = editor_state.rows[editor_state.cursor_y].size;
             }
             break;
         case MOVE_RIGHT:
