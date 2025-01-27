@@ -8,11 +8,13 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 /*** defines ***/
@@ -38,22 +40,24 @@ typedef enum Editor_Key {
 
 typedef struct Editor_Row Editor_Row;
 struct Editor_Row {
-    int size;
-    int render_size;
+    int   size;
+    int   render_size;
     char* chars;
     char* render;
 };
 
 typedef struct Editor_State Editor_State;
 struct Editor_State {
-    int cursor_x, cursor_y;
-    int render_x;
-    int row_offset, col_offset;
-    int screen_rows;
-    int screen_cols;
-    int rows_count;
-    Editor_Row* rows;
-    char* filename;
+    int            cursor_x, cursor_y;
+    int            render_x;
+    int            row_offset, col_offset;
+    int            screen_rows;
+    int            screen_cols;
+    int            rows_count;
+    Editor_Row*    rows;
+    char*          filename;
+    char           status_msg[80];
+    time_t         status_msg_time;
     struct termios original_termios;
 };
 
@@ -404,6 +408,20 @@ void editor_draw_status_bar(Append_Buf* buf) {
         }
     }
     append_buf_append(buf, "\x1b[m", 3);
+    append_buf_append(buf, "\r\n", 2);
+}
+
+void editor_draw_msg_bar(Append_Buf* buf) {
+    append_buf_append(buf, "\x1b[K", 3);
+    int msg_len = strlen(editor_state.status_msg);
+    
+    if(msg_len > editor_state.screen_cols) {
+        msg_len = editor_state.screen_cols;
+    }
+
+    if(msg_len && time(NULL) - editor_state.status_msg_time < 5) {
+        append_buf_append(buf, editor_state.status_msg, msg_len);
+    }
 }
 
 void editor_refresh_screen(void) {
@@ -422,6 +440,7 @@ void editor_refresh_screen(void) {
 
     editor_draw_rows(&buf);
     editor_draw_status_bar(&buf);
+    editor_draw_msg_bar(&buf);
 
     char cursor_buf[32];
     snprintf(
@@ -438,6 +457,14 @@ void editor_refresh_screen(void) {
 
     write(STDOUT_FILENO, buf.b, buf.len);
     append_buf_free(&buf);
+}
+
+void editor_set_status_msg(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(editor_state.status_msg, sizeof(editor_state.status_msg), fmt, ap);
+    va_end(ap);
+    editor_state.status_msg_time = time(NULL);
 }
 
 /*** input ***/
@@ -531,20 +558,22 @@ void editor_process_keypress(void) {
 /*** init ***/
 
 void editor_init(void) {
-    editor_state.cursor_x   = 0;
-    editor_state.cursor_y   = 0;
-    editor_state.render_x   = 0;
-    editor_state.row_offset = 0;
-    editor_state.col_offset = 0;
-    editor_state.rows       = NULL;
-    editor_state.rows_count = 0;
-    editor_state.filename   = NULL;
+    editor_state.cursor_x        = 0;
+    editor_state.cursor_y        = 0;
+    editor_state.render_x        = 0;
+    editor_state.row_offset      = 0;
+    editor_state.col_offset      = 0;
+    editor_state.rows            = NULL;
+    editor_state.rows_count      = 0;
+    editor_state.filename        = NULL;
+    editor_state.status_msg[0]   = '\0';
+    editor_state.status_msg_time = 0;
 
     if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
         die("Error during editor init");
     }
 
-    editor_state.screen_rows -= 1;
+    editor_state.screen_rows -= 2;
 }
 
 int main(int argc, char* argv[]) {
@@ -554,6 +583,8 @@ int main(int argc, char* argv[]) {
     if (argc >= 2) {
         editor_open(argv[1]);
     }
+
+    editor_set_status_msg("HELP: Ctrl-Q = quit");
 
     while (1) {
         editor_refresh_screen();
