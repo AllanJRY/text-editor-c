@@ -469,7 +469,9 @@ void editor_process_keypress(void) {
             break;
 
         case END_KEY:
-            editor_state.cursor_x = editor_state.screen_cols - 1;
+            if(editor_state.cursor_y < editor_state.rows_count) {
+                editor_state.cursor_x = editor_state.rows[editor_state.cursor_y].size;
+            }
             break;
 
         case PAGE_UP:
