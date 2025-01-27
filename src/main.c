@@ -475,6 +475,15 @@ void editor_process_keypress(void) {
         case PAGE_UP:
         case PAGE_DOWN:
             {
+                if (c == PAGE_UP) {
+                    editor_state.cursor_y = editor_state.row_offset;
+                } else if (c == PAGE_DOWN) {
+                    editor_state.cursor_y = editor_state.row_offset + editor_state.screen_rows - 1;
+                    if(editor_state.cursor_y > editor_state.rows_count) {
+                        editor_state.cursor_y = editor_state.rows_count;
+                    }
+                }
+
                 int times = editor_state.screen_rows;
                 while (times -= 1) {
                     editor_move_cursor(c == PAGE_UP ? MOVE_UP : MOVE_DOWN);
