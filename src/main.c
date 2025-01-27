@@ -53,6 +53,7 @@ struct Editor_State {
     int screen_cols;
     int rows_count;
     Editor_Row* rows;
+    char* filename;
     struct termios original_termios;
 };
 
@@ -274,6 +275,9 @@ void editor_append_row(char* line, size_t line_len) {
 /*** file i/o ***/
 
 void editor_open(char* filename) {
+    free(editor_state.filename);
+    editor_state.filename = strdup(filename);
+
     FILE* fp = fopen(filename, "r");
     if (!fp) die("Error while opening the file");
 
@@ -379,7 +383,14 @@ void editor_draw_rows(Append_Buf* buf) {
 
 void editor_draw_status_bar(Append_Buf* buf) {
     append_buf_append(buf, "\x1b[7m", 4);
-    int len = 0;
+
+    char status[80];
+    int len = snprintf(status, sizeof(status), "%.20s - %d lines", editor_state.filename ? editor_state.filename : "[No Name]", editor_state.rows_count);
+    if(len > editor_state.screen_cols) {
+        len = editor_state.screen_cols;
+    }
+    append_buf_append(buf, status, len);
+
     while(len < editor_state.screen_cols) {
         append_buf_append(buf, " ", 1);
         len += 1;
@@ -519,6 +530,7 @@ void editor_init(void) {
     editor_state.col_offset = 0;
     editor_state.rows       = NULL;
     editor_state.rows_count = 0;
+    editor_state.filename   = NULL;
 
     if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
         die("Error during editor init");
