@@ -373,11 +373,18 @@ void editor_draw_rows(Append_Buf* buf) {
 
         // clear the current line.
         append_buf_append(buf, "\x1b[K", 3);
-
-        if (y < editor_state.screen_rows - 1) {
-            append_buf_append(buf, "\r\n", 2);
-        }
+        append_buf_append(buf, "\r\n", 2);
     }
+}
+
+void editor_draw_status_bar(Append_Buf* buf) {
+    append_buf_append(buf, "\x1b[7m", 4);
+    int len = 0;
+    while(len < editor_state.screen_cols) {
+        append_buf_append(buf, " ", 1);
+        len += 1;
+    }
+    append_buf_append(buf, "\x1b[m", 3);
 }
 
 void editor_refresh_screen(void) {
@@ -395,6 +402,7 @@ void editor_refresh_screen(void) {
     append_buf_append(&buf, "\x1b[H", 3);
 
     editor_draw_rows(&buf);
+    editor_draw_status_bar(&buf);
 
     char cursor_buf[32];
     snprintf(
@@ -515,6 +523,8 @@ void editor_init(void) {
     if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
         die("Error during editor init");
     }
+
+    editor_state.screen_rows -= 1;
 }
 
 int main(int argc, char* argv[]) {
