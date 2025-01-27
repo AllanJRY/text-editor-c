@@ -384,16 +384,24 @@ void editor_draw_rows(Append_Buf* buf) {
 void editor_draw_status_bar(Append_Buf* buf) {
     append_buf_append(buf, "\x1b[7m", 4);
 
-    char status[80];
+    char status[80], right_status[80];
+
     int len = snprintf(status, sizeof(status), "%.20s - %d lines", editor_state.filename ? editor_state.filename : "[No Name]", editor_state.rows_count);
     if(len > editor_state.screen_cols) {
         len = editor_state.screen_cols;
     }
     append_buf_append(buf, status, len);
 
+    int right_len = snprintf(right_status, sizeof(right_status), "%d/%d", editor_state.cursor_y + 1, editor_state.rows_count);
+
     while(len < editor_state.screen_cols) {
-        append_buf_append(buf, " ", 1);
-        len += 1;
+        if(editor_state.screen_cols - len == right_len) {
+            append_buf_append(buf, right_status, right_len);
+            break;
+        } else {
+            append_buf_append(buf, " ", 1);
+            len += 1;
+        }
     }
     append_buf_append(buf, "\x1b[m", 3);
 }
