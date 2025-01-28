@@ -29,6 +29,7 @@ typedef enum Editor_Key {
     MOVE_RIGHT = 'l',
     MOVE_UP    = 'k',
     MOVE_DOWN  = 'j',
+    BACKSPACE  = 127,
     PAGE_UP    = 1000,
     PAGE_DOWN,
     HOME_KEY,
@@ -536,6 +537,10 @@ void editor_process_keypress(void) {
     int c = editor_read_key();
 
     switch(c) {
+        case CTRL_KEY('\r'):
+            /* TODO */
+            break;
+
         case CTRL_KEY('q'):
             editor_refresh_screen();
             exit(0);
@@ -549,6 +554,12 @@ void editor_process_keypress(void) {
             if(editor_state.cursor_y < editor_state.rows_count) {
                 editor_state.cursor_x = editor_state.rows[editor_state.cursor_y].size;
             }
+            break;
+
+        case BACKSPACE:
+        case CTRL_KEY('h'):
+        case DEL_KEY:
+            /* TODO */
             break;
 
         case PAGE_UP:
@@ -574,6 +585,10 @@ void editor_process_keypress(void) {
         case MOVE_UP:
         case MOVE_RIGHT:
             editor_move_cursor(c);
+            break;
+
+        case CTRL_KEY('l'):
+        case '\x1b':
             break;
 
         default:
