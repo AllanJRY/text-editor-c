@@ -57,6 +57,7 @@ struct Editor_State {
     int            screen_cols;
     int            rows_count;
     Editor_Row*    rows;
+    int            dirty;
     char*          filename;
     char           status_msg[80];
     time_t         status_msg_time;
@@ -280,6 +281,7 @@ void editor_append_row(char* line, size_t line_len) {
     editor_update_row(&editor_state.rows[at]);
 
     editor_state.rows_count += 1;
+    editor_state.dirty      += 1;
 }
 
 void editor_row_insert_char(Editor_Row* row, int at, int c) {
@@ -292,6 +294,7 @@ void editor_row_insert_char(Editor_Row* row, int at, int c) {
     row->size += 1;
     row->chars[at] = c;
     editor_update_row(row);
+    editor_state.dirty += 1;
 }
 
 /*** editor operations ***/
@@ -347,6 +350,7 @@ void editor_open(char* filename) {
 
     free(line);
     fclose(fp);
+    editor_state.dirty = 0;
 }
 
 void editor_save(void) {
@@ -361,6 +365,7 @@ void editor_save(void) {
             if (write(fd, buf, len) == len) {
                 close(fd);
                 free(buf);
+                editor_state.dirty = 0;
                 editor_set_status_msg("%d bytes written to disk", len);
                 return;
             }
@@ -461,7 +466,14 @@ void editor_draw_status_bar(Append_Buf* buf) {
 
     char status[80], right_status[80];
 
-    int len = snprintf(status, sizeof(status), "%.20s - %d lines", editor_state.filename ? editor_state.filename : "[No Name]", editor_state.rows_count);
+    int len = snprintf(
+        status,
+        sizeof(status),
+        "%.20s - %d lines %s",
+        editor_state.filename ? editor_state.filename : "[No Name]",
+        editor_state.rows_count,
+        editor_state.dirty ? "(modified)" : ""
+    );
     if(len > editor_state.screen_cols) {
         len = editor_state.screen_cols;
     }
@@ -658,6 +670,7 @@ void editor_init(void) {
     editor_state.col_offset      = 0;
     editor_state.rows            = NULL;
     editor_state.rows_count      = 0;
+    editor_state.dirty           = 0;
     editor_state.filename        = NULL;
     editor_state.status_msg[0]   = '\0';
     editor_state.status_msg_time = 0;
