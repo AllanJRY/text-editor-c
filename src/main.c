@@ -20,8 +20,9 @@
 
 /*** defines ***/
 
-#define EDITOR_VERSION "0.0.1"
-#define EDITOR_TAB_STOP 8
+#define EDITOR_VERSION    "0.0.1"
+#define EDITOR_TAB_STOP   8
+#define EDITOR_QUIT_TIMES 1
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -593,6 +594,7 @@ void editor_move_cursor(int key_pressed) {
 
 
 void editor_process_keypress(void) {
+    static int quit_times = EDITOR_QUIT_TIMES;
     int c = editor_read_key();
 
     switch(c) {
@@ -601,6 +603,11 @@ void editor_process_keypress(void) {
             break;
 
         case CTRL_KEY('q'):
+            if (editor_state.dirty && quit_times > 0) {
+                editor_set_status_msg("WARNING! File has unsaved changes. Press Ctrl-Q %d more times de quite.", quit_times);
+                quit_times -= 1;
+                return;
+            }
             editor_refresh_screen();
             exit(0);
             break;
@@ -658,6 +665,8 @@ void editor_process_keypress(void) {
             editor_insert_char(c);
             break;
     }
+
+    quit_times = EDITOR_QUIT_TIMES;
 }
 
 /*** init ***/
