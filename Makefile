@@ -1,4 +1,4 @@
-# generic_c_makefile v1.1.1
+# generic_c_makefile v1.1.1qwee
 # Łukasz Dragon <lukasz.b.dragon@gmail.com>
 # https://gist.github.com/kxlsx/c29127d75136a832f029aaae1a897213
 #
