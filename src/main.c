@@ -298,6 +298,14 @@ void editor_row_insert_char(Editor_Row* row, int at, int c) {
     editor_state.dirty += 1;
 }
 
+void editor_row_del_char(Editor_Row* row, int at) {
+    if(at < 0 || at >= row->size) return;
+    memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
+    row->size -= 1;
+    editor_update_row(row);
+    editor_state.dirty += 1;
+}
+
 /*** editor operations ***/
 
 void editor_insert_char(int c) {
@@ -307,6 +315,16 @@ void editor_insert_char(int c) {
 
     editor_row_insert_char(&editor_state.rows[editor_state.cursor_y], editor_state.cursor_x, c);
     editor_state.cursor_x += 1;
+}
+
+void editor_del_char(void) {
+    if (editor_state.cursor_y == editor_state.rows_count) return;
+
+    Editor_Row* row = &editor_state.rows[editor_state.cursor_y];
+    if (editor_state.cursor_x > 0) {
+        editor_row_del_char(row, editor_state.cursor_x - 1);
+        editor_state.cursor_x -= 1;
+    }
 }
 
 /*** file i/o ***/
@@ -629,7 +647,8 @@ void editor_process_keypress(void) {
         case BACKSPACE:
         case CTRL_KEY('h'):
         case DEL_KEY:
-            /* TODO */
+            if(c == DEL_KEY) editor_move_cursor(MOVE_RIGHT);
+            editor_del_char();
             break;
 
         case PAGE_UP:
