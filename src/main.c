@@ -6,6 +6,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -302,6 +303,25 @@ void editor_insert_char(int c) {
 
 /*** file i/o ***/
 
+char* editor_rows_to_string(int* buf_len) {
+    int total_len = 0;
+    for (int j = 0; j < editor_state.rows_count; j += 1) {
+        total_len += editor_state.rows[j].size + 1;
+    }
+    *buf_len = total_len;
+
+    char* buf = malloc(total_len);
+    char *p = buf;
+    for (int j = 0; j < editor_state.rows_count; j += 1) {
+        memcpy(p, editor_state.rows[j].chars, editor_state.rows[j].size);
+        p += editor_state.rows[j].size;
+        *p = '\n';
+        p += 1;
+    }
+
+    return buf;
+}
+
 void editor_open(char* filename) {
     free(editor_state.filename);
     editor_state.filename = strdup(filename);
@@ -323,6 +343,19 @@ void editor_open(char* filename) {
 
     free(line);
     fclose(fp);
+}
+
+void editor_save(void) {
+    if (editor_state.filename == NULL) return;
+
+    int len;
+    char* buf = editor_rows_to_string(&len);
+
+    int fd = open(editor_state.filename, O_RDWR | O_CREAT, 0644);
+    ftruncate(fd, len);
+    write(fd, buf, len);
+    close(fd);
+    free(buf);
 }
 
 /*** append buffer ***/
@@ -544,6 +577,10 @@ void editor_process_keypress(void) {
         case CTRL_KEY('q'):
             editor_refresh_screen();
             exit(0);
+            break;
+
+        case CTRL_KEY('s'):
+            editor_save();
             break;
 
         case HOME_KEY:
