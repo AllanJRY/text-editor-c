@@ -485,9 +485,19 @@ void editor_find_callback(char* query, int key) {
 }
 
 void editor_find(void) {
+    int saved_cursor_x   = editor_state.cursor_x;
+    int saved_cursor_y   = editor_state.cursor_y;
+    int saved_col_offset = editor_state.col_offset;
+    int saved_row_offset = editor_state.row_offset;
+
     char* query = editor_prompt("Search: %s (ESC to cancel)", editor_find_callback);
     if (query) {
         free(query);
+    } else {
+        editor_state.cursor_x   = saved_cursor_x;
+        editor_state.cursor_y   = saved_cursor_y;
+        editor_state.col_offset = saved_col_offset;
+        editor_state.row_offset = saved_row_offset;
     }
 }
 
