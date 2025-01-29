@@ -285,6 +285,19 @@ void editor_append_row(char* line, size_t line_len) {
     editor_state.dirty      += 1;
 }
 
+void editor_free_row(Editor_Row* row) {
+    free(row->render);
+    free(row->chars);
+}
+
+void editor_del_row(int at) {
+    if (at < 0 || at >= editor_state.rows_count) return;
+    editor_free_row(&editor_state.rows[at]);
+    memmove(&editor_state.rows[at], &editor_state.rows[at + 1], sizeof(Editor_Row) * (editor_state.rows_count - at - 1));
+    editor_state.rows_count -= 1;
+    editor_state.dirty += 1;
+}
+
 void editor_row_insert_char(Editor_Row* row, int at, int c) {
     if(at < 0 || at > row->size) {
         at = row->size;
@@ -294,6 +307,15 @@ void editor_row_insert_char(Editor_Row* row, int at, int c) {
     memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
     row->size += 1;
     row->chars[at] = c;
+    editor_update_row(row);
+    editor_state.dirty += 1;
+}
+
+void editor_row_append_string(Editor_Row* row, char* s, size_t len) {
+    row->chars = realloc(row->chars, row->size + len + 1);
+    memcpy(&row->chars[row->size], s, len);
+    row->size += len;
+    row->chars[row->size] = '\0';
     editor_update_row(row);
     editor_state.dirty += 1;
 }
@@ -319,11 +341,18 @@ void editor_insert_char(int c) {
 
 void editor_del_char(void) {
     if (editor_state.cursor_y == editor_state.rows_count) return;
+    if (editor_state.cursor_x == 0 && editor_state.cursor_y == 0) return;
+
 
     Editor_Row* row = &editor_state.rows[editor_state.cursor_y];
     if (editor_state.cursor_x > 0) {
         editor_row_del_char(row, editor_state.cursor_x - 1);
         editor_state.cursor_x -= 1;
+    } else {
+        editor_state.cursor_x = editor_state.rows[editor_state.cursor_y - 1].size;
+        editor_row_append_string(&editor_state.rows[editor_state.cursor_y - 1], row->chars, row->size);
+        editor_del_row(editor_state.cursor_y);
+        editor_state.cursor_y -= 1;
     }
 }
 
