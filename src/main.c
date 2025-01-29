@@ -268,10 +268,13 @@ void editor_update_row(Editor_Row* row) {
     row->render_size = idx;
 }
 
-void editor_append_row(char* line, size_t line_len) {
-    editor_state.rows = realloc(editor_state.rows, sizeof(Editor_Row) * (editor_state.rows_count + 1));
 
-    int at = editor_state.rows_count;
+void editor_insert_row(int at, char* line, size_t line_len) {
+    if (at < 0 || at > editor_state.rows_count) return;
+
+    editor_state.rows = realloc(editor_state.rows, sizeof(Editor_Row) * (editor_state.rows_count + 1));
+    memmove(&editor_state.rows[at + 1], &editor_state.rows[at], sizeof(Editor_Row) * (editor_state.rows_count - at));
+
     editor_state.rows[at].size = line_len;
     editor_state.rows[at].chars = malloc(line_len + 1);
     memcpy(editor_state.rows[at].chars, line, line_len);
@@ -332,11 +335,27 @@ void editor_row_del_char(Editor_Row* row, int at) {
 
 void editor_insert_char(int c) {
     if(editor_state.cursor_y == editor_state.rows_count) {
-        editor_append_row("", 0);
+        editor_insert_row(editor_state.rows_count, "", 0);
     }
 
     editor_row_insert_char(&editor_state.rows[editor_state.cursor_y], editor_state.cursor_x, c);
     editor_state.cursor_x += 1;
+}
+
+void editor_insert_new_line(void) {
+    if (editor_state.cursor_x == 0) {
+        editor_insert_row(editor_state.cursor_y, "", 0);
+    } else {
+        Editor_Row* row = &editor_state.rows[editor_state.cursor_y];
+        editor_insert_row(editor_state.cursor_y + 1, &row->chars[editor_state.cursor_x], row->size - editor_state.cursor_x);
+        row = &editor_state.rows[editor_state.cursor_y];
+        row->size = editor_state.cursor_x;
+        row->chars[row->size] = '\0';
+        editor_update_row(row);
+    }
+
+    editor_state.cursor_y += 1;
+    editor_state.cursor_x  = 0;
 }
 
 void editor_del_char(void) {
@@ -393,7 +412,7 @@ void editor_open(char* filename) {
             line_len -= 1;
         }
 
-        editor_append_row(line, line_len);
+        editor_insert_row(editor_state.rows_count, line, line_len);
     }
 
     free(line);
@@ -646,7 +665,7 @@ void editor_process_keypress(void) {
 
     switch(c) {
         case CTRL_KEY('\r'):
-            /* TODO */
+            editor_insert_new_line();
             break;
 
         case CTRL_KEY('q'):
