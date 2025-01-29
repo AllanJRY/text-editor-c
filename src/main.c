@@ -71,7 +71,7 @@ Editor_State editor_state;
 
 void editor_set_status_msg(const char* fmt, ...);
 void editorRefreshScreen(void);
-char* editor_prompt(char* prompt);
+char* editor_prompt(char* prompt, void (*callback)(char*, int));
 
 /*** terminal ***/
 
@@ -439,7 +439,7 @@ void editor_open(char* filename) {
 
 void editor_save(void) {
     if (editor_state.filename == NULL) {
-        editor_state.filename = editor_prompt("Save as: %s (ESC to cancel)");
+        editor_state.filename = editor_prompt("Save as: %s (ESC to cancel)", NULL);
         if (editor_state.filename == NULL) {
             editor_set_status_msg("Save aborted");
             return;
@@ -469,9 +469,8 @@ void editor_save(void) {
 
 /*** find ***/
 
-void editor_find(void) {
-    char* query = editor_prompt("Search: %s (ESC to cancel)");
-    if (query == NULL) return;
+void editor_find_callback(char* query, int key) {
+    if (key == '\r' || key == '\x1b') return;
 
     for (int i = 0; i < editor_state.rows_count;  i += 1) {
         Editor_Row* row = &editor_state.rows[i];
@@ -483,8 +482,13 @@ void editor_find(void) {
             break;
         }
     }
+}
 
-    free(query);
+void editor_find(void) {
+    char* query = editor_prompt("Search: %s (ESC to cancel)", editor_find_callback);
+    if (query) {
+        free(query);
+    }
 }
 
 /*** append buffer ***/
@@ -662,7 +666,7 @@ void editor_set_status_msg(const char* fmt, ...) {
 
 /*** input ***/
 
-char* editor_prompt(char* prompt) {
+char* editor_prompt(char* prompt, void (*callback)(char*, int)) {
     size_t buf_cap = 128;
     char* buf = malloc(buf_cap);
 
@@ -680,11 +684,13 @@ char* editor_prompt(char* prompt) {
             }
         } else if (c == '\x1b') {
             editor_set_status_msg("");
+            if (callback) callback(buf, c);
             free(buf);
             return NULL;
         } else if (c == '\r') {
             if (buf_len != 0) {
                 editor_set_status_msg("");
+                if (callback) callback(buf, c);
                 return buf;
             }
         } else if (!iscntrl(c) && c < 128) {
@@ -697,6 +703,8 @@ char* editor_prompt(char* prompt) {
             buf_len      += 1;
             buf[buf_len]  = '\0';
         }
+
+        if (callback) callback(buf, c);
     }
 }
 
