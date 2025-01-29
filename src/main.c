@@ -638,7 +638,12 @@ char* editor_prompt(char* prompt) {
         editor_set_status_msg(prompt, buf);
         editor_refresh_screen();
         int c = editor_read_key();
-        if (c == '\x1b') {
+        if (c == DEL_KEY || c == CTRL_KEY('h') || c == BACKSPACE) {
+            if (buf_len != 0) {
+                buf_len      -= 1;
+                buf[buf_len]  = '\0';
+            }
+        } else if (c == '\x1b') {
             editor_set_status_msg("");
             free(buf);
             return NULL;
