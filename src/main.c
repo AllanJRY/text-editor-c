@@ -597,6 +597,18 @@ void editor_draw_rows(Append_Buf* buf) {
             int len = editor_state.rows[file_row].render_size - editor_state.col_offset;
             if(len < 0) len = 0;
             if (len > editor_state.screen_cols) len = editor_state.screen_cols;
+            char* c  = &editor_state.rows[file_row].render[editor_state.col_offset];
+
+            for(int j = 0; j < len; j += 1) {
+                if(isdigit(c[j])) {
+                    append_buf_append(buf, "\x1b[31m", 5);
+                    append_buf_append(buf, &c[j], 1);
+                    append_buf_append(buf, "\x1b[39m", 5);
+                } else {
+                    append_buf_append(buf, &c[j], 1);
+                }
+            }
+
             append_buf_append(buf, &editor_state.rows[file_row].render[editor_state.col_offset], len);
         }
 
