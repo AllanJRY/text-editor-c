@@ -608,8 +608,6 @@ void editor_draw_rows(Append_Buf* buf) {
                     append_buf_append(buf, &c[j], 1);
                 }
             }
-
-            append_buf_append(buf, &editor_state.rows[file_row].render[editor_state.col_offset], len);
         }
 
         // clear the current line.
