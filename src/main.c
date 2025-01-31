@@ -238,14 +238,30 @@ bool get_window_size(int* rows, int* cols) {
 
 /*** syntax highlighting ***/
 
+int is_separator(int c) {
+    return isspace(c) || c == '\0' || strchr(",.()+-/*=~%<>[];", c) != NULL;
+}
+
 void editor_update_syntax(Editor_Row* row) {
     row->hl = realloc(row->hl, row->render_size);
     memset(row->hl, HL_NORMAL, row->render_size);
 
-    for(int i = 0; i < row->render_size; i += 1) {
-        if (isdigit(row->render[i])) {
+    int prev_sep = 1;
+
+    int i = 0;
+    while(i < row->render_size) {
+        char c = row->render[i];
+        unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
+
+        if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)) {
             row->hl[i] = HL_NUMBER;
+            i += 1;
+            prev_sep = 0;
+            continue;
         }
+
+        prev_sep = is_separator(c);
+        i += 1;
     }
 }
 
