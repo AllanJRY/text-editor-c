@@ -793,7 +793,17 @@ void editor_draw_rows(Append_Buf* buf) {
             int current_color = -1;
 
             for(int j = 0; j < len; j += 1) {
-                if(hl[j] == HL_NORMAL) {
+                if (iscntrl(c[j])) {
+                    char sym = (c[j] <= 26) ? '@' + c[j] : '?';
+                    append_buf_append(buf, "\x1b[7m", 4);
+                    append_buf_append(buf, &sym, 1);
+                    append_buf_append(buf, "\x1b[m", 3);
+                    if(current_color != -1) {
+                        char color_buf[16];
+                        int color_len = snprintf(color_buf, sizeof(color_buf), "\x1b[%dm", current_color);
+                        append_buf_append(buf, color_buf, color_len);
+                    }
+                } else if(hl[j] == HL_NORMAL) {
                     if (current_color != -1) {
                         append_buf_append(buf, "\x1b[39m", 5);
                         current_color = -1;
