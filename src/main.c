@@ -41,11 +41,13 @@ typedef enum Editor_Key {
 
 typedef enum Editor_Highlight {
     HL_NORMAL = 0,
+    HL_STRING,
     HL_NUMBER,
     HL_MATCH
 } Editor_Highlight;
 
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
+#define HL_HIGHLIGHT_STRINGS (1<<1)
 
 /*** data ***/
 
@@ -88,7 +90,7 @@ Editor_State editor_state;
 char* c_hl_extensions[] = { ".c", ".h", ".cpp", NULL };
 
 Editor_Syntax HLDB[] = {
-    {"c", c_hl_extensions, HL_HIGHLIGHT_NUMBERS },
+    {"c", c_hl_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS },
 };
 
 #define HLDB_COUNT (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -267,12 +269,35 @@ void editor_update_syntax(Editor_Row* row) {
 
     if (editor_state.syntax == NULL) return;
 
-    int prev_sep = 1;
+    int prev_sep  = 1;
+    int in_string = 0;
 
     int i = 0;
     while(i < row->render_size) {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
+
+        if (editor_state.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+            if (in_string) {
+                row->hl[i] = HL_STRING;
+                if (c == '\\' && i + 1 < row->render_size) {
+                    row->hl[i + 1] = HL_STRING;
+                    i += 2;
+                    continue;
+                }
+                if(c == in_string) in_string = 0;
+                i += 1;
+                prev_sep = 1;
+                continue;
+            } else {
+                if (c == '"' || c == '\'') {
+                    in_string = c;
+                    row->hl[i] = HL_STRING;
+                    i += 1;
+                    continue;
+                }
+            }
+        }
 
         if (editor_state.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
             if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)) {
@@ -290,6 +315,7 @@ void editor_update_syntax(Editor_Row* row) {
 
 int editor_syntax_to_color(int hl) {
     switch (hl) {
+        case HL_STRING: return 35;
         case HL_NUMBER: return 31;
         case HL_MATCH:  return 34;
         default:        return 37;
