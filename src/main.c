@@ -41,6 +41,7 @@ typedef enum Editor_Key {
 
 typedef enum Editor_Highlight {
     HL_NORMAL = 0,
+    HL_COMMENT,
     HL_STRING,
     HL_NUMBER,
     HL_MATCH
@@ -54,6 +55,7 @@ typedef enum Editor_Highlight {
 typedef struct Editor_Syntax {
     char*  file_type;
     char** file_match;
+    char*  singleline_comment_start;
     int    flags;
 } Editor_Syntax;
 
@@ -90,7 +92,7 @@ Editor_State editor_state;
 char* c_hl_extensions[] = { ".c", ".h", ".cpp", NULL };
 
 Editor_Syntax HLDB[] = {
-    {"c", c_hl_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS },
+    {"c", c_hl_extensions, "//", HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS },
 };
 
 #define HLDB_COUNT (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -269,6 +271,9 @@ void editor_update_syntax(Editor_Row* row) {
 
     if (editor_state.syntax == NULL) return;
 
+    char* scs = editor_state.syntax->singleline_comment_start;
+    int scs_len = scs ? strlen(scs) : 0;
+
     int prev_sep  = 1;
     int in_string = 0;
 
@@ -276,6 +281,13 @@ void editor_update_syntax(Editor_Row* row) {
     while(i < row->render_size) {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
+
+        if(scs_len && !in_string) {
+            if (!strncmp(&row->render[i], scs, scs_len)) {
+                memset(&row->hl[i], HL_COMMENT, row->render_size - i);
+                break;
+            }
+        }
 
         if (editor_state.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
             if (in_string) {
@@ -315,10 +327,11 @@ void editor_update_syntax(Editor_Row* row) {
 
 int editor_syntax_to_color(int hl) {
     switch (hl) {
-        case HL_STRING: return 35;
-        case HL_NUMBER: return 31;
-        case HL_MATCH:  return 34;
-        default:        return 37;
+        case HL_COMMENT: return 36;
+        case HL_STRING:  return 35;
+        case HL_NUMBER:  return 31;
+        case HL_MATCH:   return 34;
+        default:         return 37;
     }
 }
 
