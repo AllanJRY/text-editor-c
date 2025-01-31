@@ -39,14 +39,20 @@ typedef enum Editor_Key {
     DEL_KEY
 } Editor_Key;
 
+typedef enum Editor_Highlight {
+    HL_NORMAL = 0,
+    HL_NUMBER
+} Editor_Highlight;
+
 /*** datas ***/
 
 typedef struct Editor_Row Editor_Row;
 struct Editor_Row {
-    int   size;
-    int   render_size;
-    char* chars;
-    char* render;
+    int            size;
+    int            render_size;
+    char*          chars;
+    char*          render;
+    unsigned char* hl;
 };
 
 typedef struct Editor_State Editor_State;
@@ -229,6 +235,26 @@ bool get_window_size(int* rows, int* cols) {
     }
 }
 
+/*** syntax highlighting ***/
+
+void editor_update_syntax(Editor_Row* row) {
+    row->hl = realloc(row->hl, row->render_size);
+    memset(row->hl, HL_NORMAL, row->render_size);
+
+    for(int i = 0; i < row->render_size; i += 1) {
+        if (isdigit(row->render[i])) {
+            row->hl[i] = HL_NUMBER;
+        }
+    }
+}
+
+int editor_syntax_to_color(int hl) {
+    switch (hl) {
+        case HL_NUMBER: return 31;
+        default:        return 37;
+    }
+}
+
 /*** row operation ***/
 
 int editor_row_cursor_x_to_render_x(Editor_Row* row, int cursor_x) {
@@ -283,6 +309,8 @@ void editor_update_row(Editor_Row* row) {
 
     row->render[idx] = '\0';
     row->render_size = idx;
+
+    editor_update_syntax(row);
 }
 
 
@@ -299,6 +327,7 @@ void editor_insert_row(int at, char* line, size_t line_len) {
 
     editor_state.rows[at].render_size = 0;
     editor_state.rows[at].render = NULL;
+    editor_state.rows[at].hl = NULL;
     editor_update_row(&editor_state.rows[at]);
 
     editor_state.rows_count += 1;
@@ -308,6 +337,7 @@ void editor_insert_row(int at, char* line, size_t line_len) {
 void editor_free_row(Editor_Row* row) {
     free(row->render);
     free(row->chars);
+    free(row->hl);
 }
 
 void editor_del_row(int at) {
@@ -598,16 +628,29 @@ void editor_draw_rows(Append_Buf* buf) {
             if(len < 0) len = 0;
             if (len > editor_state.screen_cols) len = editor_state.screen_cols;
             char* c  = &editor_state.rows[file_row].render[editor_state.col_offset];
+            unsigned char* hl = &editor_state.rows[file_row].hl[editor_state.col_offset];
+            int current_color = -1;
 
             for(int j = 0; j < len; j += 1) {
-                if(isdigit(c[j])) {
-                    append_buf_append(buf, "\x1b[31m", 5);
+                if(hl[j] == HL_NORMAL) {
+                    if (current_color != -1) {
+                        append_buf_append(buf, "\x1b[39m", 5);
+                        current_color = -1;
+                    }
                     append_buf_append(buf, &c[j], 1);
-                    append_buf_append(buf, "\x1b[39m", 5);
                 } else {
+                    int color = editor_syntax_to_color(hl[j]);
+                    if (color != current_color) {
+                        current_color = color;
+                        char color_buf[16];
+                        int color_len = snprintf(color_buf, sizeof(color_buf), "\x1b[%dm", color);
+                        append_buf_append(buf, color_buf, color_len);
+                    }
                     append_buf_append(buf, &c[j], 1);
                 }
             }
+
+            append_buf_append(buf, "\x1b[39m", 5);
         }
 
         // clear the current line.
