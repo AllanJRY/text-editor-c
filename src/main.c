@@ -45,7 +45,15 @@ typedef enum Editor_Highlight {
     HL_MATCH
 } Editor_Highlight;
 
-/*** datas ***/
+#define HL_HIGHLIGHT_NUMBERS (1<<0)
+
+/*** data ***/
+
+typedef struct Editor_Syntax {
+    char*  file_type;
+    char** file_match;
+    int    flags;
+} Editor_Syntax;
 
 typedef struct Editor_Row Editor_Row;
 struct Editor_Row {
@@ -69,10 +77,21 @@ struct Editor_State {
     char*          filename;
     char           status_msg[80];
     time_t         status_msg_time;
+    Editor_Syntax* syntax;
     struct termios original_termios;
 };
 
 Editor_State editor_state;
+
+/*** filetypes ***/
+
+char* c_hl_extensions[] = { ".c", ".h", ".cpp", NULL };
+
+Editor_Syntax HLDB[] = {
+    {"c", c_hl_extensions, HL_HIGHLIGHT_NUMBERS },
+};
+
+#define HLDB_COUNT (sizeof(HLDB) / sizeof(HLDB[0]))
 
 /*** prototypes ***/
 
@@ -246,6 +265,8 @@ void editor_update_syntax(Editor_Row* row) {
     row->hl = realloc(row->hl, row->render_size);
     memset(row->hl, HL_NORMAL, row->render_size);
 
+    if (editor_state.syntax == NULL) return;
+
     int prev_sep = 1;
 
     int i = 0;
@@ -253,11 +274,13 @@ void editor_update_syntax(Editor_Row* row) {
         char c = row->render[i];
         unsigned char prev_hl = (i > 0) ? row->hl[i - 1] : HL_NORMAL;
 
-        if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)) {
-            row->hl[i] = HL_NUMBER;
-            i += 1;
-            prev_sep = 0;
-            continue;
+        if (editor_state.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+            if ((isdigit(c) && (prev_sep || prev_hl == HL_NUMBER)) || (c == '.' && prev_hl == HL_NUMBER)) {
+                row->hl[i] = HL_NUMBER;
+                i += 1;
+                prev_sep = 0;
+                continue;
+            }
         }
 
         prev_sep = is_separator(c);
@@ -271,6 +294,35 @@ int editor_syntax_to_color(int hl) {
         case HL_MATCH:  return 34;
         default:        return 37;
     }
+}
+
+void editor_select_syntax_highlight(void) {
+    editor_state.syntax = NULL;
+    if (editor_state.filename == NULL) return;
+
+    char* ext = strrchr(editor_state.filename, '.');
+
+    for(unsigned int j = 0; j < HLDB_COUNT; j += 1) {
+        Editor_Syntax* stx = &HLDB[j];
+
+        unsigned int i = 0;
+        while (stx->file_match[i]) {
+            int is_ext = (stx->file_match[i][0] == '.');
+            if ( (is_ext && ext && !strcmp(ext, stx->file_match[i])) || 
+                 (!is_ext && strstr(editor_state.filename, stx->file_match[i])) ) {
+                editor_state.syntax = stx;
+
+                for(int file_row = 0; file_row < editor_state.rows_count; file_row += 1) {
+                    editor_update_syntax(&editor_state.rows[file_row]);
+                }
+
+                return;
+            }
+
+            i += 1;
+        }
+    }
+
 }
 
 /*** row operation ***/
@@ -465,6 +517,8 @@ void editor_open(char* filename) {
     free(editor_state.filename);
     editor_state.filename = strdup(filename);
 
+    editor_select_syntax_highlight();
+
     FILE* fp = fopen(filename, "r");
     if (!fp) die("Error while opening the file");
 
@@ -492,6 +546,8 @@ void editor_save(void) {
             editor_set_status_msg("Save aborted");
             return;
         }
+
+        editor_select_syntax_highlight();
     }
 
     int len;
@@ -709,7 +765,14 @@ void editor_draw_status_bar(Append_Buf* buf) {
     }
     append_buf_append(buf, status, len);
 
-    int right_len = snprintf(right_status, sizeof(right_status), "%d/%d", editor_state.cursor_y + 1, editor_state.rows_count);
+    int right_len = snprintf(
+        right_status,
+        sizeof(right_status),
+        "%s | %d/%d",
+        editor_state.syntax ? editor_state.syntax->file_type : "no ft",
+        editor_state.cursor_y + 1,
+        editor_state.rows_count
+    );
 
     while(len < editor_state.screen_cols) {
         if(editor_state.screen_cols - len == right_len) {
@@ -959,6 +1022,7 @@ void editor_init(void) {
     editor_state.filename        = NULL;
     editor_state.status_msg[0]   = '\0';
     editor_state.status_msg_time = 0;
+    editor_state.syntax          = NULL;
 
     if(!get_window_size(&editor_state.screen_rows, &editor_state.screen_cols)) {
         die("Error during editor init");
