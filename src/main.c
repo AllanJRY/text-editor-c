@@ -33,12 +33,12 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 typedef enum Editor_Key {
-    MOVE_LEFT  = 'h',
-    MOVE_RIGHT = 'l',
-    MOVE_UP    = 'k',
-    MOVE_DOWN  = 'j',
     BACKSPACE  = 127,
-    PAGE_UP    = 1000,
+    MOVE_LEFT  = 1000,
+    MOVE_RIGHT,
+    MOVE_UP,
+    MOVE_DOWN,
+    PAGE_UP,
     PAGE_DOWN,
     HOME_KEY,
     END_KEY,
@@ -1037,12 +1037,12 @@ void editor_move_cursor(int key_pressed) {
                 editor_state.cursor_x = 0;
             }
             break;
-        case MOVE_UP:
+        case MOVE_DOWN:
             if(editor_state.cursor_y != 0) {
                 editor_state.cursor_y -= 1;
             }
             break;
-        case MOVE_DOWN:
+        case MOVE_UP:
             if(editor_state.cursor_y < editor_state.rows_count) {
                 editor_state.cursor_y += 1;
             }
